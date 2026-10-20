@@ -1,0 +1,18 @@
+{
+  "name": "search-report-agent",
+  "version": "0.1.0",
+  "description": "LLM agent that turns Google Search dashboard data into a reviewable, client-ready performance analysis.",
+  "type": "module",
+  "engines": {
+    "node": ">=20.6"
+  },
+  "scripts": {
+    "test": "node --test",
+    "check": "node src/cli.js check data/demo-gap.csv",
+    "analyse": "node --env-file=.env src/cli.js analyse data/demo-gap.csv --brand \"Brand A\" --market \"Market A\" --period \"Q1 2026\"",
+    "extract": "node --env-file=.env src/cli.js extract"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "0.78.0"
+  }
+}

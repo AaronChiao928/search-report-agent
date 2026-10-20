@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Search report agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F2F4F6;--surface:#FFFFFF;--sunk:#E8ECF0;--ink:#18212B;--muted:#5B6875;--line:#D3DAE1;
+  --accent:#1D5BA8;--accent-ink:#FFFFFF;--ok:#1C7C54;--ok-bg:#E3F3EA;--warn:#9A5F08;--warn-bg:#FBF0DC;--bad:#B3261E;--bad-bg:#FBE6E4;
+  --ui:"Instrument Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --prose:"Newsreader",Georgia,"Times New Roman",serif;
+  color-scheme:light;
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#11161B;--surface:#1A2128;--sunk:#222B34;--ink:#E5EAEF;--muted:#9AA7B4;--line:#2F3943;
+    --accent:#7EA9E3;--accent-ink:#0E1620;--ok:#62C495;--ok-bg:#16302A;--warn:#E3AB4E;--warn-bg:#352816;--bad:#F08A80;--bad-bg:#3A1C1A;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#11161B;--surface:#1A2128;--sunk:#222B34;--ink:#E5EAEF;--muted:#9AA7B4;--line:#2F3943;
+  --accent:#7EA9E3;--accent-ink:#0E1620;--ok:#62C495;--ok-bg:#16302A;--warn:#E3AB4E;--warn-bg:#352816;--bad:#F08A80;--bad-bg:#3A1C1A;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 var(--ui);font-variant-numeric:tabular-nums}
+.wrap{max-width:1080px;margin:0 auto;padding:28px 20px 80px}
+header{display:grid;gap:6px;margin-bottom:28px}
+h1{font-size:28px;line-height:1.15;margin:0;font-weight:700;letter-spacing:-0.01em}
+.lede{color:var(--muted);max-width:68ch;margin:0}
+section{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:20px;margin-bottom:18px}
+section>h2{display:flex;align-items:baseline;gap:10px;font-size:18px;margin:0 0 4px;font-weight:600}
+.step{font-size:13px;color:var(--muted);font-weight:500;min-width:1.4em}
+.sub{color:var(--muted);margin:0 0 14px;max-width:72ch;font-size:14px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+label.f{display:grid;gap:3px;font-size:13px;color:var(--muted)}
+input[type=text],select{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:6px 8px}
+button{font:inherit;font-weight:500;border-radius:6px;padding:7px 14px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+button:disabled{opacity:.45;cursor:not-allowed}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.scroll{overflow-x:auto;max-width:100%;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th{font-weight:600;color:var(--muted);background:var(--sunk);position:sticky;top:0}
+th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:var(--surface);z-index:1}
+th:first-child{background:var(--sunk)}
+tr:last-child td{border-bottom:0}
+td input{width:76px;text-align:right;padding:4px 6px}
+td.name input{width:150px;text-align:left}
+.grp{border-left:1px solid var(--line)}
+.flag{border-radius:8px;padding:12px 14px;margin:12px 0 0;font-size:14px}
+.flag.warn{background:var(--warn-bg);color:var(--ink);border-left:3px solid var(--warn)}
+.flag.ok{background:var(--ok-bg);border-left:3px solid var(--ok)}
+.flag.bad{background:var(--bad-bg);border-left:3px solid var(--bad)}
+.gap{color:var(--warn);font-weight:600}
+.neg{color:var(--bad)}.pos{color:var(--ok)}
+.trace{font-size:13px;border:1px solid var(--line);border-radius:8px;background:var(--sunk);padding:10px 12px;max-height:260px;overflow:auto;margin-top:12px}
+.trace ol{margin:0;padding-left:22px}
+.trace li{margin:3px 0}
+.trace code{font-size:12px}
+.status{font-size:14px;color:var(--muted);margin-top:10px;min-height:1.5em}
+.card{border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-top:12px}
+.card.approved{border-color:var(--ok)}
+.card.rejected{opacity:.55}
+.card h3{font-size:14px;margin:0 0 8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.badge{font-size:12px;font-weight:600;border-radius:99px;padding:2px 9px}
+.badge.ok{background:var(--ok-bg);color:var(--ok)}
+.badge.warn{background:var(--warn-bg);color:var(--warn)}
+.badge.muted{background:var(--sunk);color:var(--muted)}
+.prose{font-family:var(--prose);font-size:18px;line-height:1.55;max-width:70ch;margin:0}
+.prose .n-ok{text-decoration:underline;text-decoration-color:var(--ok);text-decoration-thickness:1px;text-underline-offset:3px}
+.prose .n-bad{background:var(--warn-bg);color:var(--warn);text-decoration:underline wavy var(--warn);text-underline-offset:3px;font-weight:500}
+textarea{width:100%;min-height:110px;font:17px/1.5 var(--prose);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:10px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
+.chip{font-size:12px;border:1px solid var(--line);border-radius:5px;padding:2px 7px;color:var(--muted)}
+.chip b{color:var(--ink);font-weight:600}
+.chip.bad{border-color:var(--bad);color:var(--bad)}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.note{font-size:13px;color:var(--warn);margin-top:6px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin-top:8px}
+.legend span span{font-family:var(--prose);font-size:15px}
+pre.out{white-space:pre-wrap;font:16px/1.55 var(--prose);background:var(--sunk);border-radius:8px;padding:14px 16px;margin:12px 0 0;max-width:100%}
+.hidden{display:none!important}
+.shot{display:grid;grid-template-columns:96px 1fr;gap:12px;align-items:start;border:1px solid var(--line);border-radius:8px;padding:10px;margin-top:8px}
+.shot img{width:96px;height:auto;border-radius:4px;border:1px solid var(--line)}
+.shot ul{margin:4px 0 0;padding-left:18px;font-size:13px;color:var(--warn)}
+.summary{border:1px solid var(--line);border-radius:8px;padding:6px 18px 16px;margin-top:12px}
+.summary.approved{border-color:var(--ok)}
+.bullets{margin:0;padding-left:20px}
+.bullets>li{padding:12px 0;border-bottom:1px solid var(--line)}
+.bullets>li:last-child{border-bottom:0}
+.bullets>li.removed .prose{text-decoration:line-through;opacity:.5}
+h4.sec{font-size:13px;font-weight:600;color:var(--muted);margin:18px 0 4px}
+.summary.recs{margin-top:16px}
+.btools{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.btools button{font-size:13px;padding:3px 10px}
+details summary{cursor:pointer;color:var(--muted);font-size:13px;margin-top:10px}
+@media (max-width:640px){.wrap{padding:18px 12px 60px}h1{font-size:23px}section{padding:16px 14px}.prose{font-size:17px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Search report agent</h1>
+  <p class="lede">Explains how each keyword category performed and how it moved the market-level numbers. Code does every calculation; the agent only writes about results it fetched with tools; nothing reaches the report until a person approves it.</p>
+</header>
+
+<section id="s-data">
+  <h2><span class="step">1</span>Dashboard data</h2>
+  <p class="sub">Upload the dashboard screenshots: the market view with no keyword category selected, plus one per category. The agent reads the numbers into the table below, then code cross-checks them. You can also type values in or import a CSV.</p>
+  <div class="row" style="margin-bottom:6px">
+    <label class="f" style="display:flex;gap:8px;align-items:center"><span>Upload screenshots</span><input type="file" id="shots" accept="image/png,image/jpeg,image/webp" multiple></label>
+    <span class="status" id="shot-status" style="margin:0"></span>
+  </div>
+  <div id="shot-list" style="margin-bottom:14px"></div>
+  <div class="row" style="margin-bottom:12px">
+    <label class="f">Brand<input type="text" id="m-brand"></label>
+    <label class="f">Market<input type="text" id="m-market"></label>
+    <label class="f">Period<input type="text" id="m-period"></label>
+    <label class="f">Load demo
+      <select id="demo">
+        <option value="gap">Demo: categories don’t reconcile</option>
+        <option value="clean">Demo: categories reconcile</option>
+      </select>
+    </label>
+  </div>
+  <div class="scroll"><table id="grid"></table></div>
+  <div class="row" style="margin-top:12px">
+    <button id="add-cat">Add category</button>
+    <label class="f" style="display:flex;gap:8px;align-items:center"><span>Import CSV</span><input type="file" id="csv" accept=".csv,text/csv"></label>
+    <button id="tpl">Download CSV template</button>
+  </div>
+  <details><summary>CSV format</summary><pre class="out" id="tpl-text" style="font:12px/1.5 ui-monospace,Menlo,Consolas,monospace"></pre></details>
+</section>
+
+<section id="s-check">
+  <h2><span class="step">2</span>Data checks</h2>
+  <p class="sub">Before any AI runs, code checks that the categories add up to the market total, this period and the previous period. Previous-period values are rebuilt from the % changes, so gaps under 2% are treated as rounding.</p>
+  <div id="recon"></div>
+</section>
+
+<section id="s-calc">
+  <h2><span class="step">3</span>Calculations</h2>
+  <p class="sub">Share of the market change coming from each category. For volume metrics it’s each category’s change divided by the market change. For rates and CPAs, each category’s effect splits into its own rate moving (rate) and its share of volume moving (mix).</p>
+  <div class="scroll"><table id="contrib"></table></div>
+</section>
+
+<section id="s-agent">
+  <h2><span class="step">4</span>Draft commentary</h2>
+  <p class="sub">The agent works through seven calculation tools, decides what to investigate, and writes the four-part analysis: scale and efficiency, category roles, search funnel, and recommendations. Category roles are assigned by code, not by the agent.</p>
+  <div class="row">
+    <button class="primary" id="run">Run agent</button>
+    <button id="stop" class="hidden">Stop</button>
+  </div>
+  <div class="status" id="status"></div>
+  <div class="trace hidden" id="trace"><ol id="trace-list"></ol></div>
+</section>
+
+<section id="s-review">
+  <h2><span class="step">5</span>Review</h2>
+  <p class="sub">The draft appears exactly as it will be pasted. Every number is matched against the calculation results; open “Sources” to see where each one comes from. Approve the analysis once, then decide on each recommendation separately.</p>
+  <div class="legend"><span><span class="prose n-ok">12.3%</span> matches a calculated fact</span><span><span class="prose n-bad">12.3%</span> not found in the calculations</span></div>
+  <div id="issues"></div>
+  <div id="cards"><p class="sub" style="margin-top:12px">Run the agent to get a draft.</p></div>
+</section>
+
+<section id="s-export">
+  <h2><span class="step">6</span>Report text</h2>
+  <p class="sub">Paste-ready text with no source IDs. Copy unlocks once the analysis is approved and every recommendation is approved or rejected.</p>
+  <div class="row"><button id="copy" disabled>Copy text</button><button id="dl" disabled>Download .md</button><span class="status" id="exp-status" style="margin:0"></span></div>
+  <pre class="out hidden" id="out"></pre>
+</section>
+</div>
+
+<script>
+// ---------- definitions ----------
+const BASE=[
+  {k:"impr",label:"Impressions",fmt:"int"},
+  {k:"clicks",label:"Clicks",fmt:"int"},
+  {k:"cost",label:"Cost",fmt:"eur0"},
+  {k:"qv",label:"Clean QV",fmt:"int"},
+  {k:"ec",label:"eComm clicks",fmt:"int"}];
+const RATIOS=[
+  {k:"ctr",label:"CTR",num:"clicks",den:"impr",fmt:"pct"},
+  {k:"cpc",label:"CPC",num:"cost",den:"clicks",fmt:"eur2"},
+  {k:"qvr",label:"QV rate (CVR)",num:"qv",den:"clicks",fmt:"pct"},
+  {k:"qvcpa",label:"QV CPA",num:"cost",den:"qv",fmt:"eur2"},
+  {k:"ecr",label:"eComm click rate",num:"ec",den:"clicks",fmt:"pct"},
+  {k:"eccpa",label:"eComm click CPA",num:"cost",den:"ec",fmt:"eur2"}];
+const UNALLOC="Unallocated";
+const DEMO={brand:"Brand A",market:"Market A",period:"1 Jan – 31 Mar 2026",
+rows:[{"name":"Market total","v":{"impr":[98655,-13.2,-21.3],"clicks":[4736,-15.0,-21.9],"cost":[6665,-12.1,-15.2],"qv":[1787,-36.5,-56.1],"ec":[418,-6.3,-28.9],"nu":[1790,-13.4,114.3],"is":[11,-15.0]}},{"name":"Cordless Platform","v":{"impr":[35452,-6.4,-12.2],"clicks":[2041,-0.6,-5.7],"cost":[2063,5.3,22.3],"qv":[949,-24.7,-23.5],"ec":[228,33.3,8.1],"nu":[850,-3.7,138.0],"is":[10,-1.3]}},{"name":"Knives","v":{"impr":[16620,20.6,37.4],"clicks":[829,16.1,45.7],"cost":[1333,9.4,41.7],"qv":[237,-52.3,3.3],"ec":[48,-15.2,1.9],"nu":[283,15.0,287.7],"is":[13,-18.6]}},{"name":"Saws","v":{"impr":[24772,61.3,254.4],"clicks":[836,51.8,376.9],"cost":[1560,18.1,107.0],"qv":[133,12.2,469.7],"ec":[57,-25.9,950.0],"nu":[268,26.8,1468.4],"is":[14,-46.6]}},{"name":"Tapes","v":{"impr":[21811,-11.9,-3.0],"clicks":[1030,-4.2,14.2],"cost":[1709,4.8,21.0],"qv":[468,-10.4,22.3],"ec":[85,-12.2,25.3],"nu":[389,-5.7,242.5],"is":[10,-4.3]}}]};
+
+let S={meta:{},rows:[],draft:null,issues:[],facts:new Map(),factNums:[],trace:[],ran:false,comp:"pp"};
+const $=id=>document.getElementById(id);
+const clone=o=>JSON.parse(JSON.stringify(o));
+
+// ---------- formatting ----------
+const nf=(n,d)=>Number(n).toLocaleString("en-GB",{minimumFractionDigits:d,maximumFractionDigits:d});
+function fmt(v,type){
+  if(v==null||!isFinite(v)) return "n/a";
+  switch(type){
+    case "int":return nf(Math.round(v),0);
+    case "eur0":return "€"+nf(v,0);
+    case "eur2":return "€"+nf(v,2);
+    case "pct":return (v*100).toFixed(2)+"%";
+    case "chg":return (v>=0?"+":"")+(v*100).toFixed(1)+"%";
+    case "share":return (v*100).toFixed(0)+"%";
+    case "pp":return (v>=0?"+":"")+(v*100).toFixed(2)+" pp";
+    case "deur":return (v>=0?"+€":"-€")+nf(Math.abs(v),2);
+    case "dint":return (v>=0?"+":"-")+nf(Math.abs(Math.round(v)),0);
+    case "deur0":return (v>=0?"+€":"-€")+nf(Math.abs(v),0);
+  }
+  return String(v);
+}
+const deltaFmt=t=>t==="pct"?"pp":t==="eur2"?"deur":t==="eur0"?"deur0":"dint";
+
+// ---------- maths ----------
+const compIdx=c=>c==="pp"?1:2;
+function val(row,k,p){const a=row.v[k];if(!a)return 0;if(a[0]==null||a[0]==="")return NaN;const cur=+a[0]||0;if(p==="cur")return cur;const pct=+a[compIdx(p)];if(!isFinite(pct)||pct<=-100)return NaN;return cur/(1+pct/100);}
+function recon(comp){
+  const m=S.rows[0],cats=S.rows.slice(1);const out={flagged:false,per:{}};
+  for(const b of BASE){
+    const r={};
+    for(const p of ["cur",comp]){
+      const M=val(m,b.k,p),sum=cats.reduce((s,c)=>s+val(c,b.k,p),0);
+      r[p]={M,sum,gap:M-sum,gapPct:M?(M-sum)/M:0};
+    }
+    r.na=cats.filter(c=>c.v[b.k]&&(c.v[b.k][0]==null||c.v[b.k][0]==="")).map(c=>c.name);
+    if(!r.na.length&&["cur",comp].some(p=>Math.abs(r[p].gapPct)>0.02)) out.flagged=true;
+    out.per[b.k]=r;
+  }
+  return out;
+}
+function scopes(comp){
+  const R=recon(comp);const list=S.rows.slice(1).map(r=>{const o={name:r.name,cur:{},cmp:{}};for(const b of BASE){o.cur[b.k]=val(r,b.k,"cur");o.cmp[b.k]=val(r,b.k,comp);}return o;});
+  const needResidual=BASE.some(b=>!R.per[b.k].na.length&&["cur",comp].some(p=>Math.abs(R.per[b.k][p].gapPct)>0.005));
+  if(needResidual){const u={name:UNALLOC,cur:{},cmp:{}};for(const b of BASE){if(R.per[b.k].na.length){u.cur[b.k]=NaN;u.cmp[b.k]=NaN;continue;}const gc=R.per[b.k].cur;u.cur[b.k]=Math.abs(gc.gapPct)>0.005?gc.gap:0;u.cmp[b.k]=R.per[b.k][comp].gap;}list.push(u);}
+  const mkt={cur:{},cmp:{}};for(const b of BASE){if(R.per[b.k].na.length){mkt.cur[b.k]=val(S.rows[0],b.k,"cur");mkt.cmp[b.k]=val(S.rows[0],b.k,comp);continue;}mkt.cur[b.k]=list.reduce((s,x)=>s+x.cur[b.k],0);mkt.cmp[b.k]=list.reduce((s,x)=>s+x.cmp[b.k],0);}
+  const naMetrics=BASE.filter(b=>R.per[b.k].na.length).map(b=>({k:b.k,label:b.label,categories:R.per[b.k].na}));
+  return {list,mkt,R,hasResidual:needResidual,naMetrics};
+}
+function contrib(k,comp){
+  const {list,mkt}=scopes(comp);const dM=mkt.cur[k]-mkt.cmp[k];
+  return {cur:mkt.cur[k],cmp:mkt.cmp[k],d:dM,chg:mkt.cmp[k]?dM/mkt.cmp[k]:NaN,
+    items:list.map(s=>{const d=s.cur[k]-s.cmp[k];return {name:s.name,cur:s.cur[k],cmp:s.cmp[k],d,chg:s.cmp[k]?d/s.cmp[k]:NaN,share:Math.abs(dM)>1e-9?d/dM:NaN};})};
+}
+function decompose(rk,comp){
+  const R=RATIOS.find(x=>x.k===rk);const {list,mkt}=scopes(comp);
+  const Dc=mkt.cur[R.den],Dp=mkt.cmp[R.den];const Mc=mkt.cur[R.num]/Dc,Mp=mkt.cmp[R.num]/Dp;const dM=Mc-Mp;
+  const items=list.map(s=>{
+    const dc=s.cur[R.den],dp=s.cmp[R.den];let rc=dc?s.cur[R.num]/dc:NaN,rp=dp?s.cmp[R.num]/dp:NaN;
+    if(!isFinite(rc))rc=rp;if(!isFinite(rp))rp=rc;
+    const wc=dc/Dc,wp=dp/Dp;
+    if(!isFinite(rc)) return {name:s.name,rc:NaN,rp:NaN,wc,wp,rate:0,mix:0,total:0,share:NaN};
+    const rate=(wc+wp)/2*(rc-rp),mix=(rc+rp)/2*(wc-wp);
+    return {name:s.name,rc:dc?rc:NaN,rp:dp?rp:NaN,wc,wp,rate,mix,total:rate+mix,share:Math.abs(dM)>1e-12?(rate+mix)/dM:NaN};
+  });
+  return {R,cur:Mc,cmp:Mp,d:dM,chg:Mp?dM/Mp:NaN,items};
+}
+
+// ---------- facts ----------
+function resetFacts(){S.facts=new Map();S.factNums=[];}
+function fact(label,display){
+  const id="F"+(S.facts.size+1);S.facts.set(id,{label,display});
+  for(const t of numTokens(display)) S.factNums.push(t.v);
+  return display+" ["+id+"]";
+}
+function numTokens(str){
+  const out=[];const re=/(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d+))?/g;let m;
+  while((m=re.exec(str))){
+    const prev=m.index>0?str[m.index-1]:"";
+    if(/[A-Za-z]/.test(prev)) continue;
+    const whole=m[1].replace(/,/g,""),dec=m[2]||"";
+    const v=parseFloat(whole+(dec?"."+dec:""));
+    const after=str.slice(m.index+m[0].length,m.index+m[0].length+3);
+    out.push({v,dec:dec.length,start:m.index,end:m.index+m[0].length,unit:/^\s?(%|pp)/.test(after),cur:prev==="€"});
+  }
+  return out;
+}
+function verifyText(text){
+  const toks=numTokens(text);
+  return toks.map(t=>{
+    let ok=false;
+    if(!t.unit&&!t.cur&&t.dec===0&&((t.v>=1990&&t.v<=2100)||t.v<=12)) ok=true;
+    if(!ok){const tol=0.5*Math.pow(10,-t.dec)+1e-9;ok=S.factNums.some(f=>Math.abs(f-t.v)<=tol);}
+    return {...t,ok};
+  });
+}
+
+// ---------- tools ----------
+const compLabel=c=>c==="pp"?"previous period":"last year";
+function toolOverview(comp){
+  const {mkt,R,hasResidual,list}=scopes(comp);const L=compLabel(comp);const out={comparison:L,market:{},data_check:{}};
+  for(const b of BASE){const c=contrib(b.k,comp);out.market[b.label]={current:fact(`Market ${b.label}, current`,fmt(c.cur,b.fmt)),change:fact(`Market ${b.label} vs ${L}`,fmt(c.chg,"chg"))};}
+  for(const r of RATIOS){const d=decompose(r.k,comp);out.market[r.label]={current:fact(`Market ${r.label}, current`,fmt(d.cur,r.fmt)),comparison_value:fact(`Market ${r.label}, ${L}`,fmt(d.cmp,r.fmt)),change:fact(`Market ${r.label} vs ${L}`,fmt(d.chg,"chg"))};}
+  const is=S.rows[0].v.is;if(is&&is[0]!=null&&is[0]!==""&&comp==="pp")out.market["Impression share"]={current:fact("Market impression share, current",is[0]+"%"),change:fact("Market impression share vs previous period",fmt(is[1]/100,"chg"))};
+  out.data_check.categories_reconcile=!R.flagged;
+  if(hasResidual){out.data_check.note="Listed categories do not add up to the market total. The difference is the scope 'Unallocated'.";out.data_check.unallocated_share_of_market_in_comparison_period={};
+    for(const b of BASE){if(R.per[b.k].na.length)continue;const g=R.per[b.k][comp];out.data_check.unallocated_share_of_market_in_comparison_period[b.label]=fact(`Unallocated share of market ${b.label}, ${L}`,fmt(g.gapPct,"share"));}}
+  const naM=scopes(comp).naMetrics;if(naM.length) out.data_check.metrics_without_category_data=naM.map(x=>`${x.label}: no data for ${x.categories.join(", ")}. Discuss it at market level only, and mention the gap in internal_notes.`);
+  out.scopes=list.map(s=>s.name);
+  return out;
+}
+function toolContrib(k,comp){
+  const b=BASE.find(x=>x.k===k||x.label.toLowerCase()===String(k).toLowerCase());if(!b) throw new Error("Unknown metric. Use one of: "+BASE.map(x=>x.k).join(", "));
+  const na=scopes(comp).R.per[b.k].na;if(na.length) throw new Error(`${b.label} has no data for ${na.join(", ")}, so it can only be discussed at market level.`);
+  const c=contrib(b.k,comp),L=compLabel(comp);
+  return {metric:b.label,comparison:L,market_change:fact(`Market ${b.label} change vs ${L}`,fmt(c.d,deltaFmt(b.fmt)==="dint"?"dint":"deur0")),market_change_pct:fact(`Market ${b.label} vs ${L}`,fmt(c.chg,"chg")),
+    by_scope:c.items.map(i=>({scope:i.name,current:fact(`${i.name} ${b.label}, current`,fmt(i.cur,b.fmt)),change:fact(`${i.name} ${b.label} change vs ${L}`,fmt(i.d,b.fmt==="eur0"?"deur0":"dint")),change_pct:fact(`${i.name} ${b.label} vs ${L}`,fmt(i.chg,"chg")),share_of_market_change:fact(`${i.name} share of market ${b.label} change`,fmt(i.share,"share"))}))};
+}
+function toolDecomp(rk,comp){
+  const r=RATIOS.find(x=>x.k===rk||x.label.toLowerCase()===String(rk).toLowerCase());if(!r) throw new Error("Unknown rate metric. Use one of: "+RATIOS.map(x=>x.k).join(", "));
+  const naR=scopes(comp).naMetrics.filter(x=>x.k===r.num||x.k===r.den);if(naR.length) throw new Error(`${r.label} can only be discussed at market level: ${naR.map(x=>x.label+" has no data for "+x.categories.join(", ")).join("; ")}.`);
+  const d=decompose(r.k,comp),L=compLabel(comp),df=deltaFmt(r.fmt);
+  return {metric:r.label,comparison:L,weighted_by:BASE.find(b=>b.k===r.den).label,
+    market:{current:fact(`Market ${r.label}, current`,fmt(d.cur,r.fmt)),comparison_value:fact(`Market ${r.label}, ${L}`,fmt(d.cmp,r.fmt)),change:fact(`Market ${r.label} change vs ${L}`,fmt(d.d,df))},
+    by_scope:d.items.map(i=>({scope:i.name,own_rate_current:fact(`${i.name} ${r.label}, current`,fmt(i.rc,r.fmt)),own_rate_comparison:fact(`${i.name} ${r.label}, ${L}`,fmt(i.rp,r.fmt)),
+      volume_share_current:fact(`${i.name} share of market ${BASE.find(b=>b.k===r.den).label}, current`,fmt(i.wc,"share")),volume_share_comparison:fact(`${i.name} share of market ${BASE.find(b=>b.k===r.den).label}, ${L}`,fmt(i.wp,"share")),
+      rate_effect:fact(`${i.name} rate effect on market ${r.label}`,fmt(i.rate,df)),mix_effect:fact(`${i.name} mix effect on market ${r.label}`,fmt(i.mix,df)),share_of_market_change:fact(`${i.name} share of market ${r.label} change`,fmt(i.share,"share"))})),
+    how_to_read:"rate_effect = change caused by the scope's own rate moving; mix_effect = change caused by the scope's share of volume moving. rate_effect + mix_effect across scopes = market change."};
+}
+function toolProfile(name,comp){
+  const row=S.rows.slice(1).find(r=>r.name.toLowerCase()===String(name).toLowerCase());if(!row) throw new Error("Unknown category. Use one of: "+S.rows.slice(1).map(r=>r.name).join(", "));
+  const L=compLabel(comp);const o={category:row.name,comparison:L,metrics:{}};
+  for(const b of BASE){const c=val(row,b.k,"cur"),p=val(row,b.k,comp);o.metrics[b.label]={current:fact(`${row.name} ${b.label}, current`,fmt(c,b.fmt)),change:fact(`${row.name} ${b.label} vs ${L}`,fmt(p?(c-p)/p:NaN,"chg"))};}
+  for(const r of RATIOS){const nc=val(row,r.num,"cur"),dc=val(row,r.den,"cur"),np=val(row,r.num,comp),dp=val(row,r.den,comp);const rc=nc/dc,rp=np/dp;o.metrics[r.label]={current:fact(`${row.name} ${r.label}, current`,fmt(rc,r.fmt)),change:fact(`${row.name} ${r.label} vs ${L}`,fmt((rc-rp)/rp,"chg"))};}
+  if(row.v.is&&row.v.is[0]!=null&&row.v.is[0]!==""&&comp==="pp")o.metrics["Impression share"]={current:fact(`${row.name} impression share, current`,row.v.is[0]+"%"),change:fact(`${row.name} impression share vs previous period`,fmt(row.v.is[1]/100,"chg"))};
+  return o;
+}
+
+
+// ---------- judgement rules (code decides, the agent explains) ----------
+function scopeRatio(o,num,den){return o[den]?o[num]/o[den]:NaN;}
+function scaleRead(cur,cmp,label){
+  const dc=cur.cost-cmp.cost,dv=cur[label.k]-cmp[label.k];const n=label.name;
+  const avgCmp=scopeRatio(cmp,"cost",label.k),avgCur=scopeRatio(cur,"cost",label.k);
+  let pattern,inc=NaN;
+  if(dc>0&&dv>0){inc=dc/dv;pattern=inc>1.2*avgCmp?`diminishing returns: each extra ${n} cost more than the previous average`:`efficient scaling: extra spend bought extra ${n} at or below the previous average cost`;}
+  else if(dc>0&&dv<=0) pattern=`spend rose while ${n} fell`;
+  else if(dc<=0&&dv>0) pattern=`efficiency gain: ${n} rose while spend fell`;
+  else pattern=(cmp[label.k]&&cmp.cost&&Math.abs(dv/cmp[label.k])>Math.abs(dc/cmp.cost))?`${n} fell faster than spend`:`spend fell faster than ${n}`;
+  return {pattern,inc,avgCmp,avgCur,dv,dc};
+}
+function toolScale(comp){
+  const {list,mkt}=scopes(comp),L=compLabel(comp);
+  const one=(name,cur,cmp)=>{const o={scope:name,cost_change:fact(`${name} cost vs ${L}`,fmt(cmp.cost?(cur.cost-cmp.cost)/cmp.cost:NaN,"chg"))};
+    for(const lab of [{k:"qv",name:"Clean QV"},{k:"ec",name:"eComm clicks"}]){const r=scaleRead(cur,cmp,lab);
+      o[lab.name]={change:fact(`${name} ${lab.name} vs ${L}`,fmt(cmp[lab.k]?r.dv/cmp[lab.k]:NaN,"chg")),cpa_comparison:fact(`${name} cost per ${lab.name}, ${L}`,fmt(r.avgCmp,"eur2")),cpa_current:fact(`${name} cost per ${lab.name}, current`,fmt(r.avgCur,"eur2")),
+        ...(isFinite(r.inc)?{incremental_cpa:fact(`${name} cost of each extra ${lab.name}`,fmt(r.inc,"eur2"))}:{}),reading:r.pattern};}
+    return o;};
+  return {comparison:L,rule:"Diminishing returns = the cost of each extra unit is more than 20% above the previous average CPA.",market:one("Market",mkt.cur,mkt.cmp),by_scope:list.map(x=>one(x.name,x.cur,x.cmp))};
+}
+const ROLE_METRICS=[{k:"qv",name:"Clean QV"},{k:"ec",name:"eComm clicks"}];
+function roles(comp){
+  const {list,mkt}=scopes(comp);const cats=list.filter(x=>x.name!==UNALLOC&&x.cur.cost>0);const out={};cats.forEach(c=>out[c.name]=[]);
+  const share=(c,k)=>mkt.cur[k]?c.cur[k]/mkt.cur[k]:0;
+  const cpa=(o,k)=>scopeRatio(o,"cost",k);const cpaChg=(c,k)=>cpa(c.cur,k)/cpa(c.cmp,k)-1;const cpcChg=c=>scopeRatio(c.cur,"cost","clicks")/scopeRatio(c.cmp,"cost","clicks")-1;
+  if(!cats.length) return {out,share,cpa,cpaChg,cpcChg};
+  const anc=cats.reduce((a,c)=>share(c,"cost")>share(a,"cost")?c:a);out[anc.name].push("Scale anchor (spend)");
+  for(const m of ROLE_METRICS){
+    const withM=cats.filter(c=>c.cur[m.k]>0&&c.cmp[m.k]>0);if(!withM.length)continue;
+    const elig=withM.filter(c=>share(c,m.k)>=0.1);const pool=elig.length?elig:withM;
+    const better=pool.filter(c=>isFinite(cpaChg(c,m.k))&&cpaChg(c,m.k)<0);
+    if(better.length){const eff=better.reduce((a,c)=>cpaChg(c,m.k)<cpaChg(a,m.k)?c:a);out[eff.name].push(`Efficiency driver (${m.name})`);}
+    const worse=pool.filter(c=>isFinite(cpaChg(c,m.k))&&cpaChg(c,m.k)>0&&cpcChg(c)>0);
+    if(worse.length){const bn=worse.reduce((a,c)=>cpcChg(c)>cpcChg(a)?c:a);out[bn.name].push(`Cost bottleneck (${m.name})`);}
+  }
+  return {out,share,cpa,cpaChg,cpcChg};
+}
+function toolRoles(comp){
+  const r=roles(comp),L=compLabel(comp);const {list}=scopes(comp);
+  return {comparison:L,
+    rules:{"Scale anchor (spend)":"largest share of spend in the current period","Efficiency driver (<metric>)":"largest fall in CPA for that metric vs the comparison period, among categories with at least 10% of that metric; none if no CPA fell","Cost bottleneck (<metric>)":"largest CPC increase vs the comparison period among categories with at least 10% of that metric whose CPA for that metric also rose; none if no category qualifies",
+      note:"Roles are per metric, so one category can be an efficiency driver for one metric and a cost bottleneck for another."},
+    by_category:list.filter(x=>x.name!==UNALLOC&&r.out[x.name]).map(c=>{const o={category:c.name,roles:r.out[c.name],spend_share:fact(`${c.name} share of spend, current`,fmt(r.share(c,"cost"),"share")),cpc_change:fact(`${c.name} CPC vs ${L}`,fmt(r.cpcChg(c),"chg"))};
+      for(const m of ROLE_METRICS){o[m.name]={share:fact(`${c.name} share of ${m.name}, current`,fmt(r.share(c,m.k),"share")),cpa:fact(`${c.name} cost per ${m.name}, current`,fmt(r.cpa(c.cur,m.k),"eur2")),cpa_change:fact(`${c.name} cost per ${m.name} vs ${L}`,fmt(r.cpaChg(c,m.k),"chg"))};}
+      return o;})};
+}
+function toolFunnel(comp){
+  const {list,mkt}=scopes(comp),L=compLabel(comp);
+  const one=(name,cur,cmp)=>{const ch=(n,d)=>scopeRatio(cur,n,d)/scopeRatio(cmp,n,d)-1;const ctr=ch("clicks","impr"),qvr=ch("qv","clicks"),ecr=ch("ec","clicks");
+    const div=isFinite(ctr)&&isFinite(qvr)&&Math.abs(ctr)>0.02&&Math.abs(qvr)>0.02&&Math.sign(ctr)!==Math.sign(qvr);
+    return {scope:name,ctr:fact(`${name} CTR, current`,fmt(scopeRatio(cur,"clicks","impr"),"pct")),ctr_change:fact(`${name} CTR vs ${L}`,fmt(ctr,"chg")),
+      qv_rate:fact(`${name} QV rate, current`,fmt(scopeRatio(cur,"qv","clicks"),"pct")),qv_rate_change:fact(`${name} QV rate vs ${L}`,fmt(qvr,"chg")),
+      ecomm_click_rate:fact(`${name} eComm click rate, current`,fmt(scopeRatio(cur,"ec","clicks"),"pct")),ecomm_click_rate_change:fact(`${name} eComm click rate vs ${L}`,fmt(ecr,"chg")),
+      reading:div?"pre-click engagement and post-click intent moved in opposite directions":"pre-click and post-click moved the same way or changed little"};};
+  return {comparison:L,market:one("Market",mkt.cur,mkt.cmp),by_scope:list.map(x=>one(x.name,x.cur,x.cmp))};
+}
+
+// ---------- rendering: data grid ----------
+function renderGrid(){
+  const t=$("grid");let h="<thead><tr><th>Scope</th>";
+  for(const b of BASE)h+=`<th class="grp" colspan="2">${b.label}</th>`;h+=`<th class="grp" colspan="2">Impr. share</th><th></th></tr><tr><th></th>`;
+  for(const b of BASE)h+=`<th class="grp">Value</th><th>vs PP %</th>`;h+=`<th class="grp">Value %</th><th>vs PP %</th><th></th></tr></thead><tbody>`;
+  S.rows.forEach((r,i)=>{
+    h+=`<tr><td class="name">${i===0?"<b>Market total</b>":`<input type="text" data-r="${i}" data-name value="${esc(r.name)}" aria-label="Category name">`}</td>`;
+    for(const b of BASE){const a=r.v[b.k]||[0,0,0];h+=[0,1].map(j=>`<td${j===0?' class="grp"':""}><input type="text" inputmode="decimal" data-r="${i}" data-k="${b.k}" data-j="${j}" value="${a[j]==null?"":a[j]}" placeholder="${j===0?"No data":""}" aria-label="${esc(r.name)} ${b.label} ${["value","vs PP","vs LY"][j]}"></td>`).join("");}
+    const is=r.v.is||["",""];h+=`<td class="grp"><input type="text" inputmode="decimal" data-r="${i}" data-k="is" data-j="0" value="${is[0]}" aria-label="impression share"></td><td><input type="text" inputmode="decimal" data-r="${i}" data-k="is" data-j="1" value="${is[1]}" aria-label="impression share vs PP"></td>`;
+    h+=`<td>${i===0?"":`<button data-del="${i}" aria-label="Remove ${esc(r.name)}">Remove</button>`}</td></tr>`;
+  });
+  t.innerHTML=h+"</tbody>";
+}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+$("grid").addEventListener("change",e=>{
+  const el=e.target;const i=+el.dataset.r;if(isNaN(i))return;
+  if(el.hasAttribute("data-name")){S.rows[i].name=el.value.trim()||("Category "+i);}
+  else{const k=el.dataset.k,j=+el.dataset.j;const n=parseFloat(String(el.value).replace(/[€%,\s]/g,""));S.rows[i].v[k]=S.rows[i].v[k]||[0,0,0];S.rows[i].v[k][j]=isFinite(n)?n:(j===0&&k!=="is"&&String(el.value).trim()===""?null:0);if(S.rows[i].missing&&j===0)S.rows[i].missing=S.rows[i].missing.filter(x=>x!==k);}
+  dataChanged();
+});
+$("grid").addEventListener("click",e=>{const d=e.target.dataset.del;if(d){S.rows.splice(+d,1);renderGrid();dataChanged();}});
+$("add-cat").onclick=()=>{const v={};for(const b of BASE)v[b.k]=[0,0,0];v.is=[0,0];S.rows.push({name:"New category",v});renderGrid();dataChanged();};
+["m-brand","m-market","m-period"].forEach(id=>$(id).addEventListener("input",e=>{S.meta[id.slice(2)]=e.target.value;}));
+
+function loadDemo(kind){
+  const d=clone(DEMO);S.meta={brand:d.brand,market:d.market,period:d.period};S.rows=d.rows;
+  if(kind==="clean"){ // rebuild market % changes from category sums so everything reconciles
+    for(const b of BASE){for(const c of ["pp","ly"]){const cur=S.rows.slice(1).reduce((s,r)=>s+val(r,b.k,"cur"),0),cmp=S.rows.slice(1).reduce((s,r)=>s+val(r,b.k,c),0);S.rows[0].v[b.k][compIdx(c)]=+((cur/cmp-1)*100).toFixed(1);}}
+  }
+  $("m-brand").value=S.meta.brand;$("m-market").value=S.meta.market;$("m-period").value=S.meta.period;renderGrid();dataChanged();
+}
+$("demo").onchange=e=>loadDemo(e.target.value);
+
+// CSV
+const CSV_HEAD=["scope",...BASE.flatMap(b=>[b.k,b.k+"_vs_pp"]),"impr_share","impr_share_vs_pp"];
+function toCSV(){return [CSV_HEAD.join(","),...S.rows.map(r=>[r.name.replace(/,/g," "),...BASE.flatMap(b=>(r.v[b.k]||[0,0]).slice(0,2)),...(r.v.is||["",""])].join(","))].join("\n");}
+$("tpl-text").textContent="First row must be the market total. No thousands separators, € or % signs.\nKeys: impr = impressions, qv = Clean QV, ec = eComm clicks.\n\n"+CSV_HEAD.join(",")+"\nMarket total,98655,-13.2,4736,-15.0,...\nLeave a value empty if the dashboard shows “No data”.";
+$("csv").onchange=async e=>{
+  const f=e.target.files[0];if(!f)return;const txt=await f.text();const lines=txt.trim().split(/\r?\n/).filter(Boolean);
+  const head=lines[0].split(",").map(s=>s.trim());const idx=n=>head.indexOf(n);
+  const missing=CSV_HEAD.slice(0,-2).filter(h=>idx(h)<0);
+  if(missing.length){alert("CSV is missing columns: "+missing.join(", "));return;}
+  S.rows=lines.slice(1).map(l=>{const c=l.split(",");const v={};for(const b of BASE)v[b.k]=[b.k,b.k+"_vs_pp",b.k+"_vs_ly"].map((h,j)=>{const raw=String(c[idx(h)]??"").trim();const n=parseFloat(raw);return isFinite(n)?n:(j===0&&idx(h)>=0&&(raw===""||/no\s*data/i.test(raw))?null:0);});v.is=[parseFloat(c[idx("impr_share")])||0,parseFloat(c[idx("impr_share_vs_pp")])||0];return {name:(c[0]||"").trim(),v};});
+  if(S.rows.length) S.rows[0].name="Market total";renderGrid();dataChanged();
+};
+
+// ---------- screenshots ----------
+const EXTRACT_PROMPT=`The image is a screenshot of a Google search performance dashboard ("Performance Overview"). Read it and reply with only JSON in this shape:
+{"brand":string|null,"market":string|null,"period":string|null,"keyword_category":string|null,
+"metrics":{"impressions":[value,vs_pp],"impr_share":[value,vs_pp],"clicks":[value,vs_pp],"ctr":[value,vs_pp],"cost":[value,vs_pp],"cpc":[value,vs_pp],"qualified_visits":[value,vs_pp],"clean_qv":[value,vs_pp],"qv_rate":[value,vs_pp],"qv_cpa":[value,vs_pp],"ecomm_clicks":[value,vs_pp],"ecomm_click_rate":[value,vs_pp],"ecomm_click_cpa":[value,vs_pp]}}
+Rules:
+- value is the big number, as a plain number with no separators, units or signs: "98,655" -> 98655, "4.80%" -> 4.80, "6,665 €" -> 6665, "1.06 €" -> 1.06.
+- vs_pp is the FIRST % change under the value (vs previous period), as a signed number: "↓ -13.2%" -> -13.2, "↑ 8.6%" -> 8.6. Ignore the second % change (vs last year).
+- Take the sign only from the minus sign or the arrow direction. Never from the colour: red and green mean worse or better, not down or up.
+- keyword_category: when a category is selected, the filter reads "Keyword Category: <name>"; return that name. When the filter reads just "Keyword Category" with nothing after it, this is the market total: return null. Never return "Category" or "Keyword Category" as a name.
+- If the dashboard shows both "Qualified Visits" and "Clean QV", fill both; if only one is shown, fill that one and set the other to null.
+- If a metric shows "No data", set it to the string "no data" instead of an array.
+- Use null for anything you cannot read with confidence. Do not guess.`;
+const MAPB={impr:"impressions",clicks:"clicks",cost:"cost",qv:"clean_qv",ec:"ecomm_clicks"};
+const isNoData=x=>typeof x==="string"&&/no\s*data/i.test(x)||Array.isArray(x)&&typeof x[0]==="string"&&/no\s*data/i.test(x[0]);
+const MAPR={ctr:"ctr",cpc:"cpc",qvr:"qv_rate",qvcpa:"qv_cpa",ecr:"ecomm_click_rate",eccpa:"ecomm_click_cpa"};
+let shots=[];
+const numOr=(x,d)=>{const n=parseFloat(x);return isFinite(n)?n:d;};
+function crossCheck(row){
+  const issues=[];if(!row.shown)return issues;
+  for(const r of RATIOS){
+    const s=row.shown[r.k];if(!s||s[0]==null)continue;
+    const isPct=r.fmt==="pct";const nc=val(row,r.num,"cur"),dc=val(row,r.den,"cur");if(!dc)continue;
+    const calc=nc/dc*(isPct?100:1);const shown=+s[0];
+    const dec=(String(shown).split(".")[1]||"").length;const tol=0.5*Math.pow(10,-dec)*1.05+0.01*Math.abs(shown);
+    if(Math.abs(calc-shown)>tol) issues.push(`${r.label}: the numbers read imply ${isPct?calc.toFixed(2)+"%":"€"+calc.toFixed(2)}, the screenshot shows ${isPct?shown+"%":"€"+shown}`);
+    for(const [j,lab] of [[1,"vs PP"]]){
+      if(s[j]==null)continue;const a=row.v[r.num][j],b=row.v[r.den][j];if(a==null||b==null)continue;
+      const implied=((1+a/100)/(1+b/100)-1)*100;
+      if(Math.abs(implied-s[j])>Math.max(1.0,0.02*Math.abs(s[j]))) issues.push(`${r.label} ${lab}: the changes read imply ${implied>=0?"+":""}${implied.toFixed(1)}%, the screenshot shows ${s[j]>=0?"+":""}${s[j]}%`);
+    }
+  }
+  for(const k of (row.missing||[])){const b=BASE.find(x=>x.k===k);issues.push(`${b.label}: the value couldn’t be read. Enter it in the table.`);}
+  return issues;
+}
+function renderShots(){
+  $("shot-list").innerHTML=shots.map(s=>{
+    const row=S.rows.find(r=>r===s.row);const issues=row?crossCheck(row):[];
+    return `<div class="shot"><img src="${s.url}" alt="Screenshot ${esc(s.scope||"")}"><div><b>${esc(s.scope||"Reading…")}</b> ${s.err?`<span class="badge warn">${esc(s.err)}</span>`:s.row?(issues.length?`<span class="badge warn">${issues.length} check${issues.length>1?"s":""} failed</span>`:`<span class="badge ok">14 numbers cross-checked</span>`):""}
+      ${issues.length?`<ul>${issues.map(i=>`<li>${esc(i)}</li>`).join("")}</ul><div class="sub" style="margin:6px 0 0;font-size:13px">Compare with the screenshot and correct the table.</div>`:""}</div></div>`;
+  }).join("");
+}
+$("shots").onchange=async e=>{
+  const files=[...e.target.files];if(!files.length)return;
+  const sample=await samplePromise;
+  if(!sample){$("shot-status").textContent="Reading screenshots works when this page is opened in Claude. Type the values in or import a CSV instead.";return;}
+  let lim=null;try{lim=await sample.limits();}catch{}
+  if(!lim||!lim.images){$("shot-status").textContent="Image reading isn’t available in this view. Type the values in or import a CSV instead.";return;}
+  shots=[];renderShots();
+  const newRows=[null];
+  for(const [i,f] of files.entries()){
+    const item={url:URL.createObjectURL(f),scope:null,row:null,err:null};shots.push(item);renderShots();
+    $("shot-status").textContent=`Reading screenshot ${i+1} of ${files.length}…`;
+    try{
+      const out=await sample.json(EXTRACT_PROMPT,{images:[f]});const m=(out&&out.metrics)||{};
+      const v={};const unread=[];for(const [k,src0] of Object.entries(MAPB)){let src=src0;if(k==="qv"&&(m.clean_qv==null))src="qualified_visits";const raw=m[src];if(isNoData(raw)){v[k]=[null,0,0];continue;}const a=Array.isArray(raw)?raw:[];const n=numOr(a[0],null);if(n==null)unread.push(k);v[k]=[n==null?0:n,numOr(a[1],0),numOr(a[2],0)];}
+      const isA=m.impr_share||[];v.is=[numOr(isA[0],0),numOr(isA[1],0)];
+      const shown={};for(const [k,src] of Object.entries(MAPR)){const a=m[src];if(Array.isArray(a))shown[k]=a.map(x=>numOr(x,null));}
+      const isA0=m.impr_share;if(isNoData(isA0))v.is=[null,0];
+      let cat=out&&out.keyword_category?String(out.keyword_category).replace(/^\s*keyword\s*category\s*[:：]?\s*/i,"").trim():null;if(!cat||/^(keyword\s*)?categor(y|ies)$/i.test(cat)||/^\(?\d*\)?$/.test(cat))cat=null;
+      const row={name:cat||"Market total",v,shown,missing:unread};
+      if(!cat){newRows[0]=row;if(out.brand)S.meta.brand=out.brand;if(out.market)S.meta.market=out.market;if(out.period)S.meta.period=out.period;}
+      else{const k=newRows.findIndex(r=>r&&r.name.toLowerCase()===cat.toLowerCase());if(k>0)newRows[k]=row;else newRows.push(row);}
+      item.scope=cat||"Market total";item.row=row;
+    }catch(err){item.err=err&&err.code==="rate_limited"?"Too many requests. Try again shortly.":"Couldn’t read this one";}
+    renderShots();
+  }
+  if(!newRows[0]){$("shot-status").textContent="No market-level screenshot found (one with no keyword category selected). Add it, or fill in the market total row by hand.";const blank={};for(const b of BASE)blank[b.k]=[0,0,0];blank.is=[0,0];newRows[0]={name:"Market total",v:blank};}
+  else $("shot-status").textContent=`Read ${files.length} screenshot${files.length>1?"s":""}. Check any flagged values below, then continue.`;
+  
+  S.rows=newRows;$("m-brand").value=S.meta.brand||"";$("m-market").value=S.meta.market||"";$("m-period").value=S.meta.period||"";
+  renderGrid();dataChanged();renderShots();e.target.value="";
+};
+
+// ---------- rendering: checks & calcs ----------
+function dataChanged(){
+  renderRecon();renderContrib();renderShots();
+  if(S.ran){S.draft=null;S.issues=[];S.ran=false;renderCards();$("status").textContent="Data changed. Run the agent again for a fresh draft.";}
+}
+
+function renderRecon(){
+  const comp=S.comp,R=recon(comp),L=compLabel(comp);
+  let h=`<div class="scroll" style="margin-top:12px"><table><thead><tr><th>Metric</th><th class="grp">Market, current</th><th>Categories, current</th><th>Gap</th><th class="grp">Market, ${L}</th><th>Categories, ${L}</th><th>Gap</th></tr></thead><tbody>`;
+  for(const b of BASE){const r=R.per[b.k];const g=x=>{const cls=Math.abs(x.gapPct)>0.02?"gap":"";return `<td class="${cls}">${fmt(x.gapPct,"share")}</td>`;};
+    h+=`<tr><td>${b.label}</td><td class="grp">${fmt(r.cur.M,b.fmt)}</td><td>${fmt(r.cur.sum,b.fmt)}</td>${g(r.cur)}<td class="grp">${fmt(r[comp].M,b.fmt)}</td><td>${fmt(r[comp].sum,b.fmt)}</td>${g(r[comp])}</tr>`;}
+  h+="</tbody></table></div>";
+  if(R.flagged){const worst=BASE.map(b=>R.per[b.k][comp].gapPct);const lo=Math.min(...worst),hi=Math.max(...worst);
+    h+=`<div class="flag warn"><b>The categories don’t add up to the market total vs ${L}.</b> Between ${fmt(lo,"share")} and ${fmt(hi,"share")} of the market’s ${L} volume sits outside the listed categories, for example keywords that were paused, re-categorised or left uncategorised. It’s analysed as a separate “${UNALLOC}” scope so the market change is fully explained, and the agent must flag it. Worth confirming the category mapping before this goes to a client.</div>`;}
+  else h+=`<div class="flag ok">Categories add up to the market total in both periods.</div>`;
+  const naM=scopes(comp).naMetrics;if(naM.length)h+=`<div class="flag warn">${naM.map(x=>`<b>${esc(x.label)}</b> shows “No data” for ${esc(x.categories.join(", "))}`).join("; ")}. ${naM.length>1?"These metrics are":"This metric is"} left out of the category checks and only discussed at market level.</div>`;
+  $("recon").innerHTML=h;
+}
+function renderContrib(){
+  const comp=S.comp,{list}=scopes(comp);
+  let h=`<thead><tr><th>Metric</th><th class="grp">Market change</th>${list.map(s=>`<th class="grp">${esc(s.name)}</th>`).join("")}</tr></thead><tbody>`;
+  for(const b of BASE){const c=contrib(b.k,comp);h+=`<tr><td>${b.label}</td><td class="grp ${c.chg<0?"neg":"pos"}">${fmt(c.chg,"chg")}</td>${c.items.map(i=>`<td class="grp">${fmt(i.share,"share")}</td>`).join("")}</tr>`;}
+  for(const r of RATIOS){const d=decompose(r.k,comp),df=deltaFmt(r.fmt);h+=`<tr><td>${r.label}</td><td class="grp">${fmt(d.d,df)}</td>${d.items.map(i=>`<td class="grp" title="Rate ${fmt(i.rate,df)} / mix ${fmt(i.mix,df)}">${fmt(i.rate,df)} / ${fmt(i.mix,df)}</td>`).join("")}</tr>`;}
+  $("contrib").innerHTML=h+`</tbody>`;
+  $("contrib").insertAdjacentHTML("beforeend",`<caption style="caption-side:bottom;text-align:left;padding:8px;color:var(--muted);font-size:12px">Volume rows: share of the market change. Rate rows: rate effect / mix effect, in the metric’s own units.</caption>`);
+}
+
+// ---------- agent ----------
+let samplePromise=(async()=>{try{return window.claude?await claude.use("sample"):null;}catch{return null;}})();
+let ctl=null;
+function addTrace(txt){S.trace.push(txt);$("trace").classList.remove("hidden");const li=document.createElement("li");li.innerHTML=txt;$("trace-list").appendChild(li);$("trace").scrollTop=1e6;}
+function buildPrompt(comp,toolsMode,pre){
+  const cats=S.rows.slice(1).map(r=>r.name);const {hasResidual,R}=scopes(comp);
+  return `You are a senior paid search strategist writing the analysis section of a client report for a Google Search campaign.
+Context: brand "${S.meta.brand}", market "${S.meta.market}", period ${S.meta.period}. Comparison: vs ${compLabel(comp)}.
+The market total is made up of these keyword categories: ${cats.join(", ")}.${hasResidual?` Data check result: the listed categories do NOT fully add up to the market total${R.flagged?" (material gap)":" (small gap)"}. The difference is analysed as an extra scope called "${UNALLOC}". Account for its effect on market-level changes, and describe the gap in internal_notes.`:""}
+
+Write the analysis in four parts:
+1. headline: overall scale and efficiency, 2 or 3 sentences. Did the change in spend bring incremental demand or diminishing returns further down the funnel (Clean QV and eComm clicks)? Base it on get_scale_efficiency.
+2. categories: one bullet per category${hasResidual?` plus one for "${UNALLOC}"`:""}, ordered by impact on the market, 1 or 2 sentences each. Use the roles from get_category_roles exactly as given. Roles are per metric, so a category can be an efficiency driver for one metric and a cost bottleneck for another; when that happens, explain both sides. Put all of a category's roles in "role" joined with " & " (empty if none); never assign or rename a role yourself. For a cost bottleneck, explain how the CPC change fed through to the CPA for that metric. Say how the category moved the market-level results.
+3. funnel: an overall diagnosis of whether pre-click engagement (CTR) and post-click intent (QV rate, eComm click rate) moved together or diverged, based on get_funnel, then 1 or 2 category spotlights that back it up.
+4. recommendations: exactly 3, one of each type: "Budget reallocation", "Search term & bidding control", "Creative & ad relevance". 1 or 2 sentences each, naming the category concerned and tied to at least one number from the tools. Recommend only what the numbers support. You cannot see budgets, seasonality or tests in flight, so do not assume them.
+Rules:
+- Every number you write must be copied exactly as it appears in the ${toolsMode?"tool results":"results below"} (for example "+12.3%", "€1.06", "+0.25 pp"). Never calculate, combine, re-round or estimate a number yourself.
+- List the fact IDs of every number you used in "fact_ids", never in the text.
+- Client-facing British English. Never put fact IDs, tool names, the word "scope", or the terms "rate effect" and "mix effect" in the text. Explain mechanisms in plain words, for example "driven by its own CPA rising" or "because a larger share of Clean QV came from Knives, which has a higher CPA".${hasResidual?`
+- In the text, call "${UNALLOC}" "keywords outside the reported categories".`:""}
+- Caveats meant only for the reviewer (data gaps, thin evidence) go in internal_notes.
+${toolsMode?`Process: first call get_overview, get_scale_efficiency, get_category_roles and get_funnel together in one round. Then, only if needed, get contributions or decompose the rate metrics that moved most. Then write the answer.`:`Results:\n${pre}`}
+
+Final answer: only JSON in this shape:
+{"headline":{"text":"...","fact_ids":["F1"]},
+"categories":[{"category":"<exact scope name>","role":"<role from get_category_roles or empty>","text":"...","fact_ids":["F2"]}],
+"funnel":{"overall":{"text":"...","fact_ids":[]},"spotlights":[{"category":"<exact scope name>","text":"...","fact_ids":[]}]},
+"recommendations":[{"type":"Budget reallocation","text":"...","fact_ids":[]},{"type":"Search term & bidding control","text":"...","fact_ids":[]},{"type":"Creative & ad relevance","text":"...","fact_ids":[]}],
+"internal_notes":[{"text":"...","fact_ids":[]}]}`;
+}
+function makeTools(comp){
+  const wrap=(name,fn,argText)=>async(input)=>{const r=fn(input);addTrace(`<code>${name}</code>${argText(input)} → ${countFacts(r)} facts`);setStatus("Agent is working…");return r;};
+  return [
+    {name:"get_overview",description:"Market-level totals, rates and % changes for the comparison, plus the data reconciliation check and the list of scopes. Call this first.",execute:wrap("get_overview",()=>toolOverview(comp),()=>"")},
+    {name:"get_category_contributions",description:"For one volume or cost metric, each scope's current value, change and share of the market-level change. metric is one of: impr, clicks, cost, qv, ec.",
+      inputSchema:{type:"object",properties:{metric:{type:"string",enum:BASE.map(b=>b.k)}},required:["metric"]},execute:wrap("get_category_contributions",i=>toolContrib(String(i.metric),comp),i=>`(${esc(i.metric)})`)},
+    {name:"decompose_rate",description:"For one rate or cost-per metric, splits the market change into each scope's rate effect (its own rate moved) and mix effect (its share of volume moved). metric is one of: ctr, cpc, qvr, qvcpa, ecr, eccpa.",
+      inputSchema:{type:"object",properties:{metric:{type:"string",enum:RATIOS.map(r=>r.k)}},required:["metric"]},execute:wrap("decompose_rate",i=>toolDecomp(String(i.metric),comp),i=>`(${esc(i.metric)})`)},
+    {name:"get_scale_efficiency",description:"Overall scale and efficiency: for the market and each scope, how spend changed against Clean QV and eComm clicks, previous and current CPA, the cost of each extra unit, and a coded reading (diminishing returns, efficient scaling, etc.).",execute:wrap("get_scale_efficiency",()=>toolScale(comp),()=>"")},
+    {name:"get_category_roles",description:"Category roles assigned by fixed rules, per metric: Scale anchor (spend), Efficiency driver (Clean QV / eComm clicks), Cost bottleneck (Clean QV / eComm clicks), with the numbers behind them. Use these roles exactly; never assign roles yourself.",execute:wrap("get_category_roles",()=>toolRoles(comp),()=>"")},
+    {name:"get_funnel",description:"Search funnel: CTR (pre-click) against QV rate and eComm click rate (post-click) for the market and each scope, with a coded reading of whether they diverged.",execute:wrap("get_funnel",()=>toolFunnel(comp),()=>"")},
+    {name:"get_category_profile",description:"All metrics and % changes for one listed category.",
+      inputSchema:{type:"object",properties:{category:{type:"string"}},required:["category"]},execute:wrap("get_category_profile",i=>toolProfile(String(i.category),comp),i=>`(${esc(i.category)})`)}];
+}
+function countFacts(o){return (JSON.stringify(o).match(/\[F\d+\]/g)||[]).length;}
+function setStatus(t){$("status").textContent=t;}
+
+$("run").onclick=async()=>{
+  const sample=await samplePromise;
+  if(!sample){setStatus("AI drafting runs when this page is opened in Claude. The data checks and calculations above still work here.");return;}
+  const comp=S.comp;resetFacts();S.trace=[];$("trace-list").innerHTML="";S.draft=null;S.issues=[];renderCards();
+  ctl=new AbortController();$("run").disabled=true;$("stop").classList.remove("hidden");setStatus("Thinking…");
+  let toolsMode=true;try{const lim=await sample.limits();toolsMode=!!(lim&&lim.tools&&lim.tools.maxCount>=7);}catch{toolsMode=false;}
+  let prompt,opts={signal:ctl.signal};
+  if(toolsMode){prompt=buildPrompt(comp,true);opts.tools=makeTools(comp);addTrace("Agent started with 7 tools");}
+  else{const parts=[toolOverview(comp),toolScale(comp),toolRoles(comp),toolFunnel(comp),...BASE.map(b=>toolContrib(b.k,comp)),...RATIOS.map(r=>toolDecomp(r.k,comp))];prompt=buildPrompt(comp,false,JSON.stringify(parts));opts.cache=false;addTrace("Tools aren’t available in this view, so all calculation results were sent in one prompt");}
+  try{
+    const out=await sample.json(prompt,opts);
+    ingest(out,comp);addTrace(`Draft returned: ${S.draft?S.draft.cats.length:0} category bullets, ${S.draft?S.draft.recs.length:0} recommendations`);setStatus("Draft ready. Review it below.");
+  }catch(e){
+    const msg={cancelled:"Stopped.",not_granted:"Claude access wasn’t allowed for this page, so drafting is off.",rate_limited:"Too many requests right now. Try again in a minute.",invalid_json:"The agent’s reply wasn’t in the expected format. Run it again.",refused:"Claude declined this request.",sampling_disabled:"Claude isn’t available for this account."}[e&&e.code]||"Something went wrong reaching Claude. Run it again.";
+    setStatus(msg);
+  }finally{$("run").disabled=false;$("stop").classList.add("hidden");ctl=null;}
+};
+$("stop").onclick=()=>ctl&&ctl.abort();
+
+const JARGON=/\b(rate effect|mix effect|scope|unallocated)\b|\bF\d+\b/i;
+function cleanText(t){return String(t).replace(/\s*[\[(]\s*F\d+(?:\s*,\s*F\d+)*\s*[\])]/g,"").replace(/\s{2,}/g," ").trim();}
+function item(o,extra){const text=cleanText(o&&o.text||"");return {text,ids:arr(o&&o.fact_ids).map(String),check:verifyText(text),editing:false,removed:false,...extra};}
+const REC_TYPES=["Budget reallocation","Search term & bidding control","Creative & ad relevance"];
+const clientName=n=>n===UNALLOC?"Keywords outside the reported categories":n;
+function ingest(out,comp){
+  const {list}=scopes(comp);const coded=roles(comp).out;
+  const d={headline:null,cats:[],funnel:null,spots:[],recs:[],notes:[],status:"pending",ack:false};
+  d.headline=item(out&&out.headline||{text:""},{scope:"Overall"});
+  const seen=new Set();
+  for(const c of arr(out&&out.categories)){if(!c||!c.text)continue;const sc=String(c.category||"");seen.add(sc.toLowerCase());
+    const real=list.find(x=>x.name.toLowerCase()===sc.toLowerCase());const expected=real?(coded[real.name]||[]):[];
+    d.cats.push(item(c,{scope:real?real.name:sc,role:expected.join(" & "),saidRole:String(c.role||""),expected}));}
+  const f=out&&out.funnel||{};d.funnel=item(f.overall||{text:""},{scope:"Funnel"});
+  for(const sp of arr(f.spotlights)){if(sp&&sp.text)d.spots.push(item(sp,{scope:String(sp.category||"")}));}
+  for(const r of arr(out&&out.recommendations)){if(r&&r.text)d.recs.push(item(r,{type:String(r.type||"Recommendation"),decision:"pending",ack:false,rec:true}));}
+  for(const n of arr(out&&out.internal_notes)){if(n&&n.text)d.notes.push(item(n,{scope:"Note"}));}
+  S.issues=[];
+  const missing=list.map(x=>x.name).filter(n=>!seen.has(n.toLowerCase()));
+  if(missing.length) S.issues.push(`No bullet was returned for: ${missing.join(", ")}. Run the agent again, or cover it in the headline.`);
+  if(!d.headline.text) S.issues.push("No overall scale and efficiency summary was returned.");
+  const types=d.recs.map(r=>r.type);const lackRec=REC_TYPES.filter(t=>!types.includes(t));
+  if(lackRec.length) S.issues.push(`Missing recommendation type: ${lackRec.join(", ")}.`);
+  S.draft=d;S.ran=true;renderCards();
+}
+const arr=x=>Array.isArray(x)?x:[];
+
+// ---------- review ----------
+function markText(text,check){
+  let h="",pos=0;for(const t of check){h+=esc(text.slice(pos,t.start));h+=`<span class="${t.ok?"n-ok":"n-bad"}">${esc(text.slice(t.start,t.end))}</span>`;pos=t.end;}
+  return h+esc(text.slice(pos));
+}
+function analysisItems(){const d=S.draft;return d?[d.headline,...d.cats,d.funnel,...d.spots].filter(x=>x&&!x.removed):[];}
+function itemFlags(it){const f=[];const bad=it.check.filter(t=>!t.ok).length;if(bad)f.push(`${bad} number${bad>1?"s":""} not found`);
+  if(it.ids.some(id=>!S.facts.has(id)))f.push("cites a source that doesn’t exist");if(JARGON.test(it.text))f.push("internal wording in client text");
+  if(it.expected){const said=it.saidRole.toLowerCase().split(/\s*[&;,]\s*/).filter(Boolean).sort().join("|"),exp=it.expected.map(x=>x.toLowerCase()).sort().join("|");if(said!==exp)f.push(`agent said role “${it.saidRole||"none"}”, rules give “${it.role||"none"}”`);}
+  if(it.rec&&!it.ids.length)f.push("no number backs this recommendation");
+  return f;}
+function sourcesHtml(it){
+  const chips=it.ids.map(id=>{const f=S.facts.get(id);return f?`<span class="chip"><b>${esc(f.display)}</b> ${esc(f.label)}</span>`:`<span class="chip bad">${esc(id)} doesn’t exist</span>`;}).join("");
+  return `<details><summary>Sources (${it.ids.length})</summary><div class="chips">${chips||'<span class="chip">No sources listed</span>'}</div></details>`;
+}
+function labelOf(it){if(it.rec)return it.type;if(it.expected)return clientName(it.scope)+(it.role?` (${it.role})`:"");if(it.scope==="Overall"||it.scope==="Funnel")return "";return clientName(it.scope);}
+function itemHtml(it,key,removable){
+  const flags=itemFlags(it);const lab=labelOf(it);
+  const body=it.editing?`<textarea data-ta="${key}" aria-label="Edit text">${esc(it.text)}</textarea><div class="btools"><button class="primary" data-act="save" data-k="${key}">Save</button><button data-act="cancel" data-k="${key}">Cancel</button></div>`
+    :`<p class="prose">${lab?`<b style="font-weight:500">${esc(lab)}:</b> `:""}${markText(it.text,it.check)||'<span style="color:var(--muted)">Empty</span>'}</p>`;
+  let tools="";
+  if(!it.editing){
+    let btn=`<button data-act="edit" data-k="${key}">Edit</button>`;
+    if(it.rec) btn=`<button class="primary" data-act="rapprove" data-k="${key}" ${it.decision==="approved"?"disabled":""}>${flags.length&&it.ack?"Approve anyway":"Approve"}</button><button data-act="rreject" data-k="${key}" ${it.decision==="rejected"?"disabled":""}>Reject</button>`+btn+(it.decision!=="pending"?`<span class="badge ${it.decision==="approved"?"ok":"muted"}">${it.decision==="approved"?"Approved":"Rejected"}</span>`:"");
+    else if(removable) btn+=`<button data-act="toggle" data-k="${key}">${it.removed?"Restore":"Remove"}</button>`;
+    tools=`<div class="btools">${btn}${flags.map(f=>`<span class="badge warn">${esc(f)}</span>`).join("")}</div>${it.rec&&it.ack&&flags.length&&it.decision!=="approved"?`<div class="note">Check the flags, then select “Approve anyway”.</div>`:""}${sourcesHtml(it)}`;
+  }
+  return body+tools;
+}
+function renderCards(){
+  $("issues").innerHTML=S.issues.map(i=>`<div class="flag bad">${esc(i)}</div>`).join("");
+  const d=S.draft;
+  if(!d){$("cards").innerHTML=`<p class="sub" style="margin-top:12px">${S.ran?"The agent returned nothing usable.":"Run the agent to get a draft."}</p>`;renderExport();return;}
+  const flagged=analysisItems().filter(it=>itemFlags(it).length).length;
+  const st=d.status==="approved"?`<span class="badge ok">Approved</span>`:`<span class="badge muted">Waiting for review</span>`;
+  let h=`<div class="summary ${d.status}"><h3 style="margin-top:12px">${esc(reportTitle())} ${st}</h3>
+    <h4 class="sec">Overall scale and efficiency</h4><div>${itemHtml(d.headline,"h",false)}</div>
+    <h4 class="sec">Category performance</h4><ul class="bullets">${d.cats.map((b,i)=>`<li class="${b.removed?"removed":""}">${itemHtml(b,"c"+i,true)}</li>`).join("")}</ul>
+    <h4 class="sec">Search funnel and traffic quality</h4><div>${itemHtml(d.funnel,"f",false)}</div>
+    <ul class="bullets">${d.spots.map((b,i)=>`<li class="${b.removed?"removed":""}">${itemHtml(b,"s"+i,true)}</li>`).join("")}</ul>
+    ${d.ack&&flagged&&d.status!=="approved"?`<div class="note">${flagged} part${flagged>1?"s are":" is"} flagged above. Check them, then select “Approve anyway”.</div>`:""}
+    <div class="actions"><button class="primary" data-act="approve" ${d.status==="approved"?"disabled":""}>${flagged&&d.ack?"Approve anyway":"Approve analysis"}</button></div></div>
+    <div class="summary recs"><h3 style="margin-top:12px">Recommendations</h3>
+    <p class="sub" style="margin:0 0 4px">Decide on each one. The agent can’t see budget limits, seasonality or tests in flight, so check each against what you know.</p>
+    <ul class="bullets">${d.recs.map((r,i)=>`<li>${itemHtml(r,"r"+i,false)}</li>`).join("")||"<li>No recommendations were returned.</li>"}</ul></div>`;
+  if(d.notes.length) h+=`<div class="flag warn"><b>Internal notes</b> (for you only, never copied into the report)<ul>${d.notes.map(n=>`<li>${markText(n.text,n.check)}</li>`).join("")}</ul></div>`;
+  $("cards").innerHTML=h;renderExport();
+}
+function getItem(key){const d=S.draft,i=+key.slice(1);return key==="h"?d.headline:key==="f"?d.funnel:key[0]==="c"?d.cats[i]:key[0]==="s"?d.spots[i]:d.recs[i];}
+$("cards").addEventListener("click",e=>{
+  const a=e.target.dataset.act;if(!a)return;const d=S.draft;if(!d)return;
+  if(a==="approve"){const flagged=analysisItems().some(it=>itemFlags(it).length);if(flagged&&!d.ack)d.ack=true;else d.status="approved";renderCards();return;}
+  const it=getItem(e.target.dataset.k);if(!it)return;
+  if(a==="rapprove"){if(itemFlags(it).length&&!it.ack)it.ack=true;else it.decision="approved";}
+  if(a==="rreject")it.decision="rejected";
+  if(a==="edit")it.editing=true;
+  if(a==="cancel")it.editing=false;
+  if(a==="toggle"){it.removed=!it.removed;d.status="pending";d.ack=false;}
+  if(a==="save"){const ta=document.querySelector(`[data-ta="${e.target.dataset.k}"]`);it.text=cleanText(ta.value);it.check=verifyText(it.text);it.editing=false;
+    if(it.rec){it.decision="pending";it.ack=false;}else{d.status="pending";d.ack=false;}}
+  renderCards();
+});
+
+// ---------- export ----------
+function reportTitle(){return `${S.meta.brand||"Brand"} ${S.meta.market||""} – Search performance, ${S.meta.period||""} vs ${compLabel(S.comp)}`.replace(/\s+/g," ");}
+function reportText(md){
+  const d=S.draft;const mk=md?"- ":"• ";const H=t=>md?`### ${t}`:t;
+  const live=a=>a.filter(x=>!x.removed);const recs=d.recs.filter(r=>r.decision==="approved");
+  let t=`${md?"## ":""}${reportTitle()}\n\n${H("Overall scale and efficiency")}\n${d.headline.text}\n\n${H("Category performance")}\n${live(d.cats).map(c=>mk+labelOf(c)+": "+c.text).join("\n")}\n\n${H("Search funnel and traffic quality")}\n${d.funnel.text}\n${live(d.spots).map(c=>mk+labelOf(c)+": "+c.text).join("\n")}\n`;
+  if(recs.length) t+=`\n${H("Recommendations")}\n${recs.map(r=>mk+r.type+": "+r.text).join("\n")}\n`;
+  return t;
+}
+function renderExport(){
+  const d=S.draft;const recsDone=d&&d.recs.every(r=>r.decision!=="pending");const ready=!!(d&&d.status==="approved"&&recsDone);
+  $("copy").disabled=!ready;$("dl").disabled=!ready;
+  $("exp-status").textContent=!d?"":ready?"":d.status!=="approved"?"Approve the analysis to copy it":"Approve or reject each recommendation to copy";
+  if(ready){$("out").textContent=reportText(false);$("out").classList.remove("hidden");}else $("out").classList.add("hidden");
+}
+$("copy").onclick=async()=>{try{await navigator.clipboard.writeText(reportText(false));$("exp-status").textContent="Copied";}catch{const r=document.createRange();r.selectNodeContents($("out"));const s=getSelection();s.removeAllRanges();s.addRange(r);$("exp-status").textContent="Text selected. Press Ctrl+C or ⌘C to copy.";}};
+const dlPromise=(async()=>{try{return window.claude?await claude.use("downloads"):null;}catch{return null;}})();
+async function save(filename,data){const d=await dlPromise;if(!d){$("exp-status").textContent="Downloads work when this page is opened in Claude.";return;}try{await d.save({filename,data});}catch(e){if(e&&e.code!=="declined")$("exp-status").textContent="The file couldn’t be saved here.";}}
+$("dl").onclick=()=>save("search-report.md",reportText(true));
+$("tpl").onclick=()=>save("search-report-template.csv",toCSV());
+
+loadDemo("gap");
+</script>
+</body>
+</html>
